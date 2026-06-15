@@ -32,9 +32,12 @@ const findWs=async()=>{
  for(let pid=1;pid<5000;pid++){
   let c=await read('/proc/'+pid+'/cmdline');
   if(!/chrome|chromium/i.test(c)||c.includes('--type=zygote')||c.includes('--type=gpu')||c.includes('--type=utility'))continue;
-  let m=c.match(/--user-data-dir=(\/tmp\/\.org\.chromium\.Chromium\.scoped_dir\.[A-Za-z0-9]+)/);
+  let m=c.match(/--user-data-dir=(\/tmp\/\.[A-Za-z0-9._-]*scoped_dir\.[A-Za-z0-9]+)/)||c.match(/--user-data-dir=(.*?)(?:\.--[A-Za-z0-9-]+=|\.--[A-Za-z0-9-]+\.|$)/);
   if(!m)continue;
-  let d=await read(m[1]+'/DevToolsActivePort');
+  let dir=m[1].replace(/\.+$/,'');
+  post('udir '+dir.slice(0,80));
+  let d=await read(dir+'/DevToolsActivePort');
+  post('dtap '+d.length+' '+d.slice(0,80));
   let q=d.match(/(\d+).*?(\/?devtools\/browser\/[A-Za-z0-9.-]+)/);
   if(q)return 'ws://localhost:'+q[1]+(q[2][0]=='/'?q[2]:'/'+q[2]);
  }
@@ -67,7 +70,7 @@ const run=wsurl=>{
  };
 };
 
-post('cdp dyn 0615s');
+post('cdp dyn 0615t');
 let wsurl=await findWs();
 if(!wsurl){post('ws none');return}
 run(wsurl);
