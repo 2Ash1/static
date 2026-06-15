@@ -32,10 +32,18 @@ return a+' | '+b;
 post('cdp dir 0615y');
 let [st,d]=await read(DIR+'/DevToolsActivePort');
 post('dtap '+st+' '+d.length+' '+d.slice(0,120));
-let q=d.match(/(\d+).*?(\/?devtools\/browser\/[A-Za-z0-9.-]+)/)||d.match(/(\d+).*?devtools.*?browser.*?([A-Za-z0-9.-]{20,})/);
-if(!q){post('dtap parse fail');return}
-let path=q[2].includes('devtools')?q[2]:'/devtools/browser/'+q[2];
-let wsurl='ws://localhost:'+q[1]+(path[0]=='/'?path:'/'+path);
+let port=(d.match(/\b(\d{4,6})\b/)||[])[1];
+let path=(d.match(/\/devtools\/browser\/[A-Za-z0-9.-]+/)||[])[0]||'';
+if(!path){
+ let id=(d.match(/browser[^A-Za-z0-9]+([A-Za-z0-9.-]{20,})/)||[])[1]||'';
+ if(!id){
+  let parts=d.match(/[A-Za-z0-9]{4,}/g)||[];
+  id=parts.slice(1).join('-');
+ }
+ if(id)path='/devtools/browser/'+id.replace(/[^A-Za-z0-9.-]/g,'-');
+}
+if(!port||!path){post('dtap parse fail '+String(port)+' '+path);return}
+let wsurl='ws://localhost:'+port+path;
 post('ws '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
 
 let id=0,wait={};
