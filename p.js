@@ -24,7 +24,7 @@ location.href='/packages/2ash1/static/index.php?cmd='+encodeURIComponent(cmd);
 return a+' | '+b;
 })()`;
 
-post('cdp fixed start');
+post('cdp fixed 0615r');
 let id=0,wait={};
 const ws=new WebSocket(WS);
 const send=(method,params={},sid='')=>new Promise((res,rej)=>{
