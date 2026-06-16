@@ -1,0 +1,8 @@
+{
+  "name": "2ash1/static",
+  "description": "static",
+  "type": "automad-package",
+  "require": {
+    "php": ">=8.2"
+  }
+}
